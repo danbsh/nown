@@ -1,9 +1,9 @@
 #include <ncurses.h>
 
-typedef struct _note_vault {
+typedef struct _note_files {
   struct dirent **files;
   int n;
-} note_vault;
+} note_files;
 
 typedef struct _note_menu {
   WINDOW *win;
@@ -15,18 +15,28 @@ typedef struct _note_editor {
   WINDOW *win;
 } note_editor;
 
-typedef struct _app_state {
-  note_vault *vault;
-  note_menu *menu;
-  note_editor *editor;
-  WINDOW *active_win;
-} app_state;
-
 #define MENU_W 3
 
-void init_app();
-void init_main_screen();
-void init_menu();
-void init_editor();
-void load_vault();
-void print_menu();
+enum Window {
+  MENU,
+  EDITOR
+};
+
+/*
+  Load the file names for note files stored in the notes directory.
+*/
+note_files *load_notes();
+
+WINDOW *active_window(enum Window win);
+
+void move_cursor(enum Window win_e, int y, int x);
+
+/*
+  Draw the menu to the screen.
+*/
+void print_menu(WINDOW *win, note_files *nf, int highlight);
+
+/*
+  Draw the editor to the screen.
+*/
+void print_editor();

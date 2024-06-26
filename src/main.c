@@ -6,91 +6,114 @@
 
 #include "nown.h"
 
-static app_state *state;
+WINDOW *menu_win;
+WINDOW *editor_win;
 
 int main(void) {
-  state = (app_state *)malloc(sizeof(app_state));
-  init_app();
-
-  while (getch() != KEY_F(1)) {
-  }
-
-  free(state->vault);
-  free(state->menu);
-  free(state);
-  endwin();
-
-  return 0;
-}
-
-void init_app() {
-  init_main_screen();
-  load_vault();
-  init_menu();
-  init_editor();
-}
-
-void init_main_screen() {
   initscr();
   raw();
   noecho();
   keypad(stdscr, TRUE);
   refresh();
+
+  int menu_w = COLS / MENU_W;
+  int editor_w = COLS - menu_w;
+  enum Window active = MENU;
+
+  int curs_x = 1;
+  int curs_y = 2;
+
+  note_files *files_d = load_notes();
+
+  menu_win = newwin(LINES, menu_w, 0, 0);
+  keypad(menu_win, TRUE);
+  print_menu(menu_win, files_d, curs_y);
+
+  editor_win = newwin(LINES, editor_w, 0, menu_w);
+  keypad(editor_win, TRUE);
+
+  wmove(active_window(active), curs_y, curs_x);
+
+  int key;
+  while (key = wgetch(active_window(active)), key != KEY_F(1)) {
+    switch (key) {
+    case KEY_DOWN:
+      move_cursor(active, ++curs_y, curs_x);
+      break;
+    case KEY_UP:
+      move_cursor(active, --curs_y, curs_x);
+      break;
+    }
+
+    print_menu(menu_win, files_d, curs_y);
+    wrefresh(active_window(active));
+  }
+
+  free(files_d);
+  endwin();
+
+  return 0;
 }
 
-void init_menu(note_vault files) {
-  int menu_len = COLS / MENU_W;
-
-  state->menu = (note_menu *)malloc(sizeof(note_menu));
-  state->menu->win = newwin(LINES, menu_len, 0, 0);
-  state->menu->highlight = 2;
-  state->menu->choice = 2;
-
-  print_menu();
+WINDOW *active_window(enum Window win) {
+  switch (win) {
+  case MENU:
+    return menu_win;
+  case EDITOR:
+    return editor_win;
+  }
 }
 
-void init_editor() {
-  int menu_len = COLS / MENU_W;
-  int editor_len = COLS - menu_len;
+void move_cursor(enum Window win_e, int y, int x) {
+  switch (win_e) {
+  case MENU:
+    if (y < 2)
+      y = 2;
+    break;
+  }
 
-  state->editor = (note_editor *)malloc(sizeof(note_editor));
-  state->editor->win = newwin(LINES, editor_len, 0, menu_len);
-  box(state->editor->win, 0, 0);
-  wrefresh(state->editor->win);
+  WINDOW *win = active_window(win_e);
+  wmove(win, y, x);
 }
 
-void load_vault() {
+note_files *load_notes() {
   struct dirent **namelist;
   int n;
-
-  state->vault = (note_vault *)malloc(sizeof(note_vault));
 
   if ((n = scandir("./vault", &namelist, NULL, alphasort)) == -1) {
     perror("Error scanning vault.");
     exit(EXIT_FAILURE);
   }
 
-  state->vault->files = namelist;
-  state->vault->n = n;
+  note_files *nf = (note_files *)malloc(sizeof(note_files));
+  nf->files = namelist;
+  nf->n = n;
+
+  return nf;
 }
 
-void print_menu() {
-  for (int i = 0; i < state->vault->n; i++) {
-    char *name = state->vault->files[i]->d_name;
+void print_menu(WINDOW *win, note_files *nf, int highlight) {
+  for (int i = 0; i < nf->n; i++) {
+    char *name = nf->files[i]->d_name;
 
     if (i == 1) {
-      wattron(state->menu->win, A_BOLD);
-      mvwprintw(state->menu->win, i, 1, "Notes");
-      wattroff(state->menu->win, A_BOLD);
+      wattron(win, A_BOLD);
+      mvwprintw(win, i, 1, "Notes");
+      wattroff(win, A_BOLD);
     }
 
     if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0)
       continue;
 
-    mvwprintw(state->menu->win, i, 1, "%s\n", state->vault->files[i]->d_name);
+    if (i == highlight)
+      wattron(win, A_REVERSE);
+
+    mvwprintw(win, i, 1, "%s\n", nf->files[i]->d_name);
+
+    if (i == highlight)
+      wattroff(win, A_REVERSE);
   }
 
-  box(state->menu->win, 0, 0);
-  wmove(state->menu->win, state->menu->highlight, 1);
-  wrefresh(state->menu->win);
+  box(win, 0, 0);
+  wrefresh(win);
 }
